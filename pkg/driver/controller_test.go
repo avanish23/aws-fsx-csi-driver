@@ -41,7 +41,7 @@ func TestCreateVolume(t *testing.T) {
 	var (
 		volumeName             = "volumeName"
 		fileSystemId           = "fs-1234"
-		volumeSizeGiB    int64 = 1200
+		volumeSizeGiB    int32 = 1200
 		subnetId               = "subnet-056da83524edbe641"
 		securityGroupIds       = "sg-086f61ea73388fb6b,sg-0145e55e976000c9e"
 		dnsName                = "test.fsx.us-west-2.amazoawd.com"
@@ -541,8 +541,8 @@ func TestDeleteVolume(t *testing.T) {
 func TestExpandVolume(t *testing.T) {
 	var (
 		fileSystemId         = "fs-1234"
-		initialSizeGiB int64 = 1200
-		finalSizeGiB   int64 = 2400
+		initialSizeGiB int32 = 1200
+		finalSizeGiB   int32 = 2400
 	)
 	testCases := []struct {
 		name     string
@@ -606,7 +606,7 @@ func TestExpandVolume(t *testing.T) {
 				expandRequest := &csi.ControllerExpandVolumeRequest{
 					VolumeId: fileSystemId,
 					CapacityRange: &csi.CapacityRange{
-						RequiredBytes: util.GiBToBytes(initialSizeGiB),
+						RequiredBytes: util.GiBToBytes(int64(initialSizeGiB)),
 						LimitBytes:    util.GiBToBytes(3600),
 					},
 				}
@@ -777,7 +777,7 @@ func TestExpandVolume(t *testing.T) {
 					},
 				}
 				expandError := status.Errorf(codes.OutOfRange, "Requested storage capacity of %d bytes exceeds capacity limit of %d bytes.",
-					util.GiBToBytes(finalSizeGiB),
+					util.GiBToBytes(int64(finalSizeGiB)),
 					expandRequest.GetCapacityRange().GetLimitBytes())
 
 				initialFs := &cloud.FileSystem{

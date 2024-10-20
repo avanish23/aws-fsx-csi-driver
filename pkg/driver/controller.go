@@ -167,7 +167,7 @@ func (d *controllerService) CreateVolume(ctx context.Context, req *csi.CreateVol
 		if err != nil {
 			return nil, status.Error(codes.InvalidArgument, "automaticBackupRetentionDays must be a number")
 		}
-		fsOptions.AutomaticBackupRetentionDays = n
+		fsOptions.AutomaticBackupRetentionDays = int32(n)
 	}
 
 	if val, ok := volumeParams[volumeParamsCopyTagsToBackups]; ok {
@@ -195,7 +195,7 @@ func (d *controllerService) CreateVolume(ctx context.Context, req *csi.CreateVol
 		if err != nil {
 			return nil, status.Error(codes.InvalidArgument, "perUnitStorageThroughput must be a number")
 		}
-		fsOptions.PerUnitStorageThroughput = n
+		fsOptions.PerUnitStorageThroughput = int32(n)
 	}
 
 	if val, ok := volumeParams[volumeParamsWeeklyMaintenanceStartTime]; ok {
@@ -210,7 +210,7 @@ func (d *controllerService) CreateVolume(ctx context.Context, req *csi.CreateVol
 	if capRange == nil {
 		fsOptions.CapacityGiB = cloud.DefaultVolumeSize
 	} else {
-		fsOptions.CapacityGiB = util.RoundUpVolumeSize(capRange.GetRequiredBytes(), fsOptions.DeploymentType, fsOptions.StorageType, fsOptions.PerUnitStorageThroughput)
+		fsOptions.CapacityGiB = int32(util.RoundUpVolumeSize(capRange.GetRequiredBytes(), fsOptions.DeploymentType, fsOptions.StorageType, int64(fsOptions.PerUnitStorageThroughput)))
 	}
 
 	var tagArray []string
@@ -392,23 +392,23 @@ func (d *controllerService) ControllerExpandVolume(ctx context.Context, req *csi
 		return nil, status.Errorf(codes.Internal, "DescribeFileSystem failed: %v", err)
 	}
 
-	newSizeGiB := util.RoundUpVolumeSize(capRange.GetRequiredBytes(), fs.DeploymentType, fs.StorageType, fs.PerUnitStorageThroughput)
+	newSizeGiB := util.RoundUpVolumeSize(capRange.GetRequiredBytes(), fs.DeploymentType, fs.StorageType, int64(fs.PerUnitStorageThroughput))
 	if util.GiBToBytes(newSizeGiB) != capRange.GetRequiredBytes() {
 		klog.V(4).Infof("ControllerExpandVolume: requested storage capacity of %d bytes has been rounded to a valid storage capacity of %d GiB", capRange.GetRequiredBytes(), newSizeGiB)
 	}
 	if capRange.GetLimitBytes() > 0 && util.GiBToBytes(newSizeGiB) > capRange.GetLimitBytes() {
 		return nil, status.Errorf(codes.OutOfRange, "Requested storage capacity of %d bytes exceeds capacity limit of %d bytes.", util.GiBToBytes(newSizeGiB), capRange.GetLimitBytes())
 	}
-	if newSizeGiB <= fs.CapacityGiB {
+	if newSizeGiB <= int64(fs.CapacityGiB) {
 		// Current capacity is sufficient to satisfy the request
 		klog.V(4).InfoS("ControllerExpandVolume: current filesystem capacity matches or exceeds requested storage capacity, returning with success", "current capacity", fs.CapacityGiB, "requested capacity", newSizeGiB)
 		return &csi.ControllerExpandVolumeResponse{
-			CapacityBytes:         util.GiBToBytes(fs.CapacityGiB),
+			CapacityBytes:         util.GiBToBytes(int64(fs.CapacityGiB)),
 			NodeExpansionRequired: false,
 		}, nil
 	}
 
-	finalGiB, err := d.cloud.ResizeFileSystem(ctx, volumeID, newSizeGiB)
+	finalGiB, err := d.cloud.ResizeFileSystem(ctx, volumeID, int32(newSizeGiB))
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "resize failed: %v", err)
 	}
@@ -419,7 +419,7 @@ func (d *controllerService) ControllerExpandVolume(ctx context.Context, req *csi
 	}
 
 	return &csi.ControllerExpandVolumeResponse{
-		CapacityBytes:         util.GiBToBytes(finalGiB),
+		CapacityBytes:         util.GiBToBytes(int64(finalGiB)),
 		NodeExpansionRequired: false,
 	}, nil
 }
@@ -432,7 +432,7 @@ func newCreateVolumeResponse(fs *cloud.FileSystem) *csi.CreateVolumeResponse {
 	return &csi.CreateVolumeResponse{
 		Volume: &csi.Volume{
 			VolumeId:      fs.FileSystemId,
-			CapacityBytes: util.GiBToBytes(fs.CapacityGiB),
+			CapacityBytes: util.GiBToBytes(int64(fs.CapacityGiB)),
 			VolumeContext: map[string]string{
 				volumeContextDnsName:   fs.DnsName,
 				volumeContextMountName: fs.MountName,

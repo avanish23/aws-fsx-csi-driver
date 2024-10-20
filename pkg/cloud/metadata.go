@@ -17,10 +17,10 @@ limitations under the License.
 package cloud
 
 import (
+	"context"
 	"fmt"
+	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
 	"k8s.io/klog/v2"
-
-	"github.com/aws/aws-sdk-go/aws/ec2metadata"
 )
 
 // MetadataService represents AWS metadata service.
@@ -32,10 +32,9 @@ type MetadataService interface {
 }
 
 type EC2Metadata interface {
-	Available() bool
 	// ec2 instance metadata endpoints: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instancedata-data-retrieval.html
-	GetMetadata(string) (string, error)
-	GetInstanceIdentityDocument() (ec2metadata.EC2InstanceIdentityDocument, error)
+	GetInstanceIdentityDocument(context.Context, *imds.GetInstanceIdentityDocumentInput, ...func(*imds.Options)) (*imds.GetInstanceIdentityDocumentOutput, error)
+	GetMetadata(context.Context, *imds.GetMetadataInput, ...func(*imds.Options)) (*imds.GetMetadataOutput, error)
 }
 
 type Metadata struct {
@@ -71,7 +70,7 @@ func (m *Metadata) GetAvailabilityZone() string {
 func NewMetadataService(ec2MetadataClient EC2MetadataClient, k8sAPIClient KubernetesAPIClient, region string) (MetadataService, error) {
 	klog.InfoS("retrieving instance data from ec2 metadata")
 	svc, err := ec2MetadataClient()
-	if !svc.Available() {
+	if !isIMDSAvailable(svc) {
 		klog.InfoS("ec2 metadata is not available")
 	} else if err != nil {
 		klog.InfoS("error creating ec2 metadata client", "err", err)
@@ -90,4 +89,14 @@ func NewMetadataService(ec2MetadataClient EC2MetadataClient, k8sAPIClient Kubern
 	}
 
 	return nil, fmt.Errorf("error getting instance data from ec2 metadata or kubernetes api")
+}
+
+func isIMDSAvailable(svc EC2Metadata) bool {
+	_, err := svc.GetMetadata(context.TODO(), &imds.GetMetadataInput{
+		Path: "instance-id",
+	})
+	if err != nil {
+		return false
+	}
+	return true
 }
